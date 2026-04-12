@@ -15,16 +15,16 @@ public class Result {
     private Object data;
     private Long total;
 
-    public static Result ok(){
+    public static Result success(){
         return new Result(true, null, null, null);
     }
-    public static Result ok(Object data){
+    public static Result success(Object data){
         return new Result(true, null, data, null);
     }
-    public static Result ok(List<?> data, Long total){
+    public static Result success(List<?> data, Long total){
         return new Result(true, null, data, total);
     }
-    public static Result fail(String errorMsg){
+    public static Result error(String errorMsg){
         return new Result(false, errorMsg, null, null);
     }
 }
