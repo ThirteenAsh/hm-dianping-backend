@@ -10,9 +10,12 @@ import com.hmdp.utils.SystemConstants;
 import org.springframework.cache.annotation.CacheConfig;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
+
+import static com.hmdp.utils.RedisConstants.CACHE_SHOP_KEY;
 
 /**
  * <p>
@@ -24,8 +27,10 @@ import javax.annotation.Resource;
  */
 @RestController
 @RequestMapping("/shop")
-@CacheConfig(cacheNames = "shop")
 public class ShopController {
+
+    @Resource
+    private StringRedisTemplate stringRedisTemplate;
 
     @Resource
     public IShopService shopService;
@@ -36,9 +41,8 @@ public class ShopController {
      * @return 商铺详情数据
      */
     @GetMapping("/{id}")
-    @Cacheable(key = "#id", unless = "#result == null || #result.data == null")
     public Result queryShopById(@PathVariable("id") Long id) {
-        return Result.success(shopService.getById(id));
+        return shopService.queryById(id);
     }
 
     /**
@@ -60,11 +64,9 @@ public class ShopController {
      * @return 无
      */
     @PutMapping
-    @CacheEvict(key = "#shop.id")
     public Result updateShop(@RequestBody Shop shop) {
         // 写入数据库
-        shopService.updateById(shop);
-        return Result.success();
+        return shopService.update(shop);
     }
 
     /**
