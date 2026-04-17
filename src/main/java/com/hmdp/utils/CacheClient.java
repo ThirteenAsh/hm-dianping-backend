@@ -23,6 +23,7 @@ public class CacheClient {
 
     private final StringRedisTemplate stringRedisTemplate;
 
+    // 最多同时有 10 个线程执行缓存重建任务
     private static final ExecutorService CACHE_REBUILD_EXECUTOR = Executors.newFixedThreadPool(10);
 
     /**
@@ -33,14 +34,14 @@ public class CacheClient {
     }
 
     /**
-     * 将对象序列化后写入缓存，并设置 TTL。
+     * 将任意Java对象序列化为json并存储在string类型的key中，并且可以设置TTL过期时间
      */
     public void set(String key, Object value, Long time, TimeUnit unit) {
         stringRedisTemplate.opsForValue().set(key, JSONUtil.toJsonStr(value), time, unit);
     }
 
     /**
-     * 将数据以逻辑过期时间的形式写入缓存。
+     * 将任意Java对象序列化为json并存储在string类型的key中，并且可以设置逻辑过期时间，用于处理缓存击穿问题
      */
     public void setWithLogicalExpire(String key, Object value, Long time, TimeUnit unit) {
         // 设置逻辑过期
@@ -52,7 +53,8 @@ public class CacheClient {
     }
 
     /**
-     * 使用缓存穿透保护策略查询：先查缓存，未命中则查库并回填。
+     * 解决缓存穿透问题
+     * 根据指定的key查询缓存，并反序列化为指定类型，利用缓存空值的方式解决缓存穿透问题
      */
     public <R,ID> R queryWithPassThrough(
             String keyPrefix, ID id, Class<R> type, Function<ID, R> dbFallback, Long time, TimeUnit unit){
@@ -85,7 +87,9 @@ public class CacheClient {
     }
 
     /**
-     * 使用逻辑过期策略查询：返回旧值并在后台异步重建缓存。
+     * 逻辑过期方案解决缓存击穿问题
+     * 根据指定的key查询缓存，并反序列化为指定类型，需要利用逻辑过期解决缓存击穿问题
+     * 逻辑过期方案必须“预热数据”，也就是提前把数据写入 Redis，否则它本身无法处理首次请求。
      */
     public <R, ID> R queryWithLogicalExpire(
             String keyPrefix, ID id, Class<R> type, Function<ID, R> dbFallback, Long time, TimeUnit unit) {
@@ -98,8 +102,8 @@ public class CacheClient {
             return null;
         }
         // 4.命中，需要先把json反序列化为对象
-        RedisData redisData = JSONUtil.toBean(json, RedisData.class);
-        R r = JSONUtil.toBean((JSONObject) redisData.getData(), type);
+        RedisData redisData = JSONUtil.toBean(json, RedisData.class); // 把整个 JSON 转成 RedisData 对象
+        R r = JSONUtil.toBean((JSONObject) redisData.getData(), type); // 把 JSONObject 转成真正需要的类型（Shop）
         LocalDateTime expireTime = redisData.getExpireTime();
         // 5.判断是否过期
         if(expireTime.isAfter(LocalDateTime.now())) {
@@ -133,7 +137,8 @@ public class CacheClient {
     }
 
     /**
-     * 使用互斥锁策略查询：缓存未命中时串行重建，避免击穿。
+     * 互斥锁策略查询解决缓存击穿问题
+     * 根据指定的key查询缓存，并反序列化为指定类型，需要利用互斥锁策略查询解决缓存击穿问题
      */
     public <R, ID> R queryWithMutex(
             String keyPrefix, ID id, Class<R> type, Function<ID, R> dbFallback, Long time, TimeUnit unit) {
@@ -145,7 +150,7 @@ public class CacheClient {
             // 3.存在，直接返回
             return JSONUtil.toBean(shopJson, type);
         }
-        // 判断命中的是否是空值
+        // 判断命中的是否是"" 防止缓存穿透问题又出现
         if (shopJson != null) {
             // 返回一个错误信息
             return null;
@@ -167,7 +172,7 @@ public class CacheClient {
             r = dbFallback.apply(id);
             // 5.不存在，返回错误
             if (r == null) {
-                // 将空值写入redis
+                // 将空值写入redis 解决缓存穿透问题
                 stringRedisTemplate.opsForValue().set(key, "", CACHE_NULL_TTL, TimeUnit.MINUTES);
                 // 返回错误信息
                 return null;
@@ -185,7 +190,7 @@ public class CacheClient {
     }
 
     /**
-     * 尝试获取分布式互斥锁。
+     * 获取分布式互斥锁。
      */
     private boolean tryLock(String key) {
         Boolean flag = stringRedisTemplate.opsForValue().setIfAbsent(key, "1", 10, TimeUnit.SECONDS);
