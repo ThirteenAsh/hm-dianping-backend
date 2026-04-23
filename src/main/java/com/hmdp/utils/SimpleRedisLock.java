@@ -44,14 +44,14 @@ public class SimpleRedisLock implements ILock {
                 Thread.currentThread().getId()
         );
     }
-//        //获取线程标识
-//        String threadId = ID_PREFIX + Thread.currentThread().getId();
-//        // 获取锁中的标识
-//        String id = stringRedisTemplate.opsForValue().get(KET_PREFIX + name);
-//        // 判断标识是否一致
-//        if (threadId.equals(id)) {
-//            // 释放锁
-//            stringRedisTemplate.delete(KET_PREFIX + name);
-//        }
-//    }
+/*        //获取线程标识
+        String threadId = ID_PREFIX + Thread.currentThread().getId();
+        // 获取锁中的标识
+        String id = stringRedisTemplate.opsForValue().get(KET_PREFIX + name);
+        // 判断标识是否一致
+        if (threadId.equals(id)) {
+            // 释放锁
+            stringRedisTemplate.delete(KET_PREFIX + name);
+        }
+    }*/
 }
